@@ -536,8 +536,8 @@ gantt
 | -- | ------------------------------ | ----------- | -------- |
 | 0  | Foundation                     | 2–3 d       | ✅ Done   |
 | 1  | Classes & Members              | 3–4 d       | ✅ Done   |
-| 2  | Tenant Isolation               | 2 d         | ⏳ Next   |
-| 3  | Attendance                     | 3–4 d       | Planned  |
+| 2  | Tenant Isolation               | 2 d         | ✅ Done   |
+| 3  | Attendance                     | 3–4 d       | ⏳ Next   |
 | 4  | Absence Reports (PDF)          | 3 d         | Planned  |
 | 5  | Browser Push                   | 4 d         | Planned  |
 | 6  | Quiz                           | 5 d         | Planned  |
