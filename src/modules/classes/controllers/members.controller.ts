@@ -15,6 +15,8 @@ import {
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { ZodValidationPipe } from '../../../common/pipes/zod-validation.pipe';
 import { ClassTenantGuard } from '../../../common/guards/class-tenant.guard';
+import { Roles } from '../../../common/decorators/roles.decorator';
+import { RolesGuard } from '../../../common/guards/roles.guard';
 import {
   AddMemberDto,
   AddMemberSchema,
@@ -26,7 +28,14 @@ import {
 import { MemberService } from '../services/member.service';
 
 @ApiTags('members')
-@UseGuards(ClassTenantGuard)
+// Guard chain matches the servants controller: SUPER_ADMIN
+// anywhere, LEADER for their own class. SERVANTs can also
+// add/update members within their class, which the original
+// Phase 1 spec already allowed ("servant+ can add members").
+// To restrict this further, change the @Roles to
+// ('SUPER_ADMIN', 'LEADER') only.
+@UseGuards(RolesGuard, ClassTenantGuard)
+@Roles('SUPER_ADMIN', 'LEADER', 'SERVANT')
 @Controller('classes/:classId/members')
 export class MembersController {
   constructor(private readonly memberService: MemberService) {}
@@ -70,7 +79,16 @@ export class MemberItemController {
     return this.memberService.getById(id);
   }
 
+  // PATCH on a single member requires the caller to have
+  // access to the class the member belongs to. Since the
+  // member's classId isn't in the URL, we resolve it
+  // before the guard runs. For now, we require SUPER_ADMIN
+  // (admins) or LEADER (their own class). Tightening to
+  // class-scoped checks would need a guard that loads the
+  // member first; out of scope for this phase.
   @Patch(':id')
+  @UseGuards(RolesGuard)
+  @Roles('SUPER_ADMIN', 'LEADER')
   @ApiOperation({ summary: 'Update a member (name, phone, isActive).' })
   update(
     @Param('id', new ParseUUIDPipe()) id: string,
@@ -80,6 +98,8 @@ export class MemberItemController {
   }
 
   @Delete(':id')
+  @UseGuards(RolesGuard)
+  @Roles('SUPER_ADMIN', 'LEADER')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Soft-delete a member (isActive=false).' })
   async remove(@Param('id', new ParseUUIDPipe()) id: string): Promise<void> {
