@@ -4,6 +4,7 @@ import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { LoggerModule } from 'nestjs-pino';
+import { AuthModule, Public as BetterAuthPublic } from '@thallesp/nestjs-better-auth';
 
 import configuration, { AppConfig } from './config/configuration';
 import { validateEnv } from './config/env.validation';
@@ -11,6 +12,7 @@ import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { PrismaExceptionFilter } from './common/filters/prisma-exception.filter';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 import { TimeoutInterceptor } from './common/interceptors/timeout.interceptor';
+import { RolesGuard } from './common/guards/roles.guard';
 
 import { PrismaModule } from './infrastructure/database/prisma.module';
 import { RedisModule } from './infrastructure/cache/redis.module';
@@ -20,6 +22,8 @@ import { PushModule } from './infrastructure/push/push.module';
 
 import { HealthModule } from './health/health.module';
 import { ClassesModule } from './modules/classes/classes.module';
+
+import { auth } from './auth/auth';
 
 @Module({
   imports: [
@@ -39,7 +43,6 @@ import { ClassesModule } from './modules/classes/classes.module';
                   options: { singleLine: true, translateTime: 'SYS:HH:MM:ss.l' },
                 }
               : undefined,
-            // PII redaction. Extend as the surface grows.
             redact: {
               paths: [
                 'req.headers.authorization',
@@ -78,6 +81,11 @@ import { ClassesModule } from './modules/classes/classes.module';
       ],
     }),
 
+    // Better Auth — registers the global AuthGuard (req.session/req.user)
+    // and the /api/auth/* handler routes. disableGlobalAuthGuard stays
+    // false (default) so protected routes get the auth check for free.
+    AuthModule.forRoot({ auth, isGlobal: true }),
+
     // Infrastructure
     PrismaModule,
     RedisModule,
@@ -102,9 +110,17 @@ import { ClassesModule } from './modules/classes/classes.module';
 
     // Global throttler
     { provide: APP_GUARD, useClass: ThrottlerGuard },
+
+    // RolesGuard is global so any controller can opt-in via @Roles(...)
+    { provide: APP_GUARD, useClass: RolesGuard },
   ],
 })
 export class AppModule {}
+
+// Re-export the Public marker so any module that needs to opt out
+// of the global AuthGuard can `import { Public } from '../app.module'`
+// without taking a dependency on the better-auth package.
+export const Public = BetterAuthPublic;
 
 // Re-export for type-safe ConfigService consumers.
 export type { AppConfig };

@@ -12,7 +12,10 @@ import type { Request, Response, NextFunction } from 'express';
 import { AppModule, AppConfig } from './app.module';
 
 async function bootstrap(): Promise<void> {
+  // bodyParser is disabled globally because Better Auth handles
+  // the raw request body on its /api/auth/* routes.
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
+    bodyParser: false,
     bufferLogs: true,
   });
 
