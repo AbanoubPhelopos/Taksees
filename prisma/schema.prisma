@@ -1,6 +1,6 @@
 // Taksees — Prisma schema
 // Phase 0: datasource only. Models are added per phase (see docs/phases/).
-// Phase 1 adds: User, Class, Member, ServantClass
+// Phase 1: User, Class, Member, ServantClass (this file)
 // Phase 3 adds: Session, Attendance
 // Phase 4 adds: AbsenceReport
 // Phase 5 adds: PushSubscription
@@ -17,14 +17,82 @@ generator client {
 }
 
 // ────────────────────────────────────────────────────────────────
-// Models will be appended below as each phase lands.
-// See docs/data-model.md for the final schema.
+// Phase 1: Identity, classes, and member rosters
 // ────────────────────────────────────────────────────────────────
 
-// Phase 0 placeholder. Replaced in Phase 1 with the real User model.
-model Phase0Placeholder {
+enum Role {
+  SUPER_ADMIN
+  LEADER
+  SERVANT
+  MEMBER
+}
+
+enum ClassLevel {
+  PRIMARY_1
+  PRIMARY_2
+  PRIMARY_3
+  PRIMARY_4
+  PRIMARY_5
+  PRIMARY_6
+  SECONDARY
+  COLLEGE
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  name         String
+  phone        String?
+  role         Role     @default(SERVANT)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  leaderClass    Class?          @relation("ClassLeader")
+  servantClasses ServantClass[]
+
+  @@map("users")
+}
+
+model Class {
+  id        String     @id @default(uuid())
+  name      String
+  level     ClassLevel
+  leaderId  String     @unique
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  leader   User           @relation("ClassLeader", fields: [leaderId], references: [id])
+  members  Member[]
+  servants ServantClass[]
+
+  @@map("classes")
+}
+
+model Member {
   id        String   @id @default(uuid())
+  classId   String
+  userId    String?  @unique
+  fullName  String
+  phone     String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  class Class @relation(fields: [classId], references: [id])
+
+  @@index([classId])
+  @@map("members")
+}
+
+model ServantClass {
+  servantId String
+  classId   String
   createdAt DateTime @default(now())
 
-  @@map("phase0_placeholder")
+  servant User  @relation(fields: [servantId], references: [id], onDelete: Cascade)
+  class   Class @relation(fields: [classId], references: [id], onDelete: Cascade)
+
+  @@id([servantId, classId])
+  @@index([classId])
+  @@map("servant_classes")
 }
