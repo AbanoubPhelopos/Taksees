@@ -19,6 +19,7 @@ import { StorageModule } from './infrastructure/storage/storage.module';
 import { PushModule } from './infrastructure/push/push.module';
 
 import { HealthModule } from './health/health.module';
+import { ClassesModule } from './modules/classes/classes.module';
 
 @Module({
   imports: [
@@ -86,6 +87,9 @@ import { HealthModule } from './health/health.module';
 
     // Health
     HealthModule,
+
+    // Feature modules (added per phase)
+    ClassesModule,
   ],
   providers: [
     // Global filters (order matters: Prisma first, then generic)
