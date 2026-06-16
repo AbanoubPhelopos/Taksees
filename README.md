@@ -2,7 +2,7 @@
 
 > Multi-class Sunday-school management backend. NestJS 10 + Prisma + PostgreSQL + Redis + BullMQ.
 
-Taksees (Arabic: تدقيس) powers rosters, attendance, absence reports, quizzes, and leaderboards for a network of classes (Primary 1–6, Secondary, College), each with its own leader, servants, and members. A PWA client consumes the JSON API; push notifications are delivered via the Web Push API.
+Taksees (Arabic: طقسيس) powers rosters, attendance, absence reports, quizzes, and leaderboards for a network of classes (Primary 1–6, Secondary, College), each with its own leader, servants, and members. A PWA client consumes the JSON API; push notifications are delivered via the Web Push API.
 
 ---
 
@@ -535,8 +535,8 @@ gantt
 | #  | Phase                          | Est. effort | Status   |
 | -- | ------------------------------ | ----------- | -------- |
 | 0  | Foundation                     | 2–3 d       | ✅ Done   |
-| 1  | Classes & Members              | 3–4 d       | ⏳ Next   |
-| 2  | Tenant Isolation               | 2 d         | Planned  |
+| 1  | Classes & Members              | 3–4 d       | ✅ Done   |
+| 2  | Tenant Isolation               | 2 d         | ⏳ Next   |
 | 3  | Attendance                     | 3–4 d       | Planned  |
 | 4  | Absence Reports (PDF)          | 3 d         | Planned  |
 | 5  | Browser Push                   | 4 d         | Planned  |
