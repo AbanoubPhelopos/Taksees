@@ -35,8 +35,9 @@ prisma/*.db
 prisma/*.db-journal
 
 # Local storage (mounted volume in production)
-storage/
-!storage/.gitkeep
+# Anchored to repo root so it doesn't match src/infrastructure/storage/
+/storage/
+!/storage/.gitkeep
 
 # OS
 Thumbs.db
