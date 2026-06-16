@@ -1,6 +1,8 @@
 import { betterAuth } from 'better-auth';
 import { prismaAdapter } from 'better-auth/adapters/prisma';
 import { admin } from 'better-auth/plugins';
+import { createAccessControl } from 'better-auth/plugins/access';
+import { defaultStatements } from 'better-auth/plugins/admin/access';
 import { APIError } from 'better-auth/api';
 import { PrismaClient } from '@prisma/client';
 
@@ -22,10 +24,11 @@ import { PrismaClient } from '@prisma/client';
  *     a banned user before any other check.
  *
  * Sign-up flow:
- *   - email/password: DISABLED — humans sign in with Google only
- *   - google oauth: enabled when GOOGLE_CLIENT_ID is set
- *   - accountLinking: enabled so the same email across
- *     providers ends up on the same user row
+ *   - production: email/password disabled. Humans sign in with
+ *     Google. The first SUPER_ADMIN is created by direct
+ *     Prisma writes (scripts/create-super-admin.ts).
+ *   - development: email/password enabled so the seed user
+ *     can sign in without real Google credentials.
  *
  * Session storage:
  *   - HttpOnly cookies, SameSite=Lax, 1-week expiry
@@ -35,6 +38,65 @@ import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 
 const isProd = process.env.NODE_ENV === 'production';
+
+// ────────────────────────────────────────────────────────────────
+// Access control setup for the admin plugin.
+// The plugin requires every value in `adminRoles` to be declared
+// in `roles` with an associated permission set. The Taksees
+// domain does its own role-based authorization (RolesGuard +
+// ClassTenantGuard + per-handler @Roles metadata), so all four
+// roles are given equivalent, minimal permission sets. The
+// `role` field on the user row is the source of truth.
+// ────────────────────────────────────────────────────────────────
+const ac = createAccessControl(defaultStatements);
+
+// Type aliases so the admin plugin's literal-string typing
+// accepts our role statements.
+type AdminUserAction =
+  | 'create'
+  | 'list'
+  | 'set-role'
+  | 'ban'
+  | 'impersonate'
+  | 'impersonate-admins'
+  | 'delete'
+  | 'set-password'
+  | 'set-email'
+  | 'get'
+  | 'update';
+type AdminSessionAction = 'list' | 'revoke' | 'delete';
+
+const allAdminActions: AdminUserAction[] = [
+  'create',
+  'list',
+  'set-role',
+  'ban',
+  'impersonate',
+  'impersonate-admins',
+  'delete',
+  'set-password',
+  'set-email',
+  'get',
+  'update',
+];
+const allSessionActions: AdminSessionAction[] = ['list', 'revoke', 'delete'];
+
+const superAdminRole = ac.newRole({
+  user: allAdminActions,
+  session: allSessionActions,
+});
+const leaderRole = ac.newRole({
+  user: [] as AdminUserAction[],
+  session: [] as AdminSessionAction[],
+});
+const servantRole = ac.newRole({
+  user: [] as AdminUserAction[],
+  session: [] as AdminSessionAction[],
+});
+const memberRole = ac.newRole({
+  user: [] as AdminUserAction[],
+  session: [] as AdminSessionAction[],
+});
 
 // Cast the result so the inferred type (which leaks zod v4
 // internals via the databaseHooks signature) doesn't break
@@ -79,6 +141,14 @@ export const auth = betterAuth({
       defaultRole: 'member',
       // Only these roles grant access to /admin/* endpoints.
       adminRoles: ['super_admin'],
+      // Custom roles definition — required by the plugin.
+      ac,
+      roles: {
+        super_admin: superAdminRole,
+        leader: leaderRole,
+        servant: servantRole,
+        member: memberRole,
+      },
       // Message the AuthGuard returns for banned users.
       bannedUserMessage: 'Your account has been suspended. Contact a Taksees administrator.',
     }),
