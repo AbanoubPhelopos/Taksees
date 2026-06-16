@@ -60,5 +60,16 @@ export default (): AppConfig => {
       subject: env.VAPID_SUBJECT,
     },
     fileSigningSecret: env.FILE_SIGNING_SECRET,
+    google: {
+      clientId: env.GOOGLE_CLIENT_ID,
+      clientSecret: env.GOOGLE_CLIENT_SECRET,
+      redirectUri: env.GOOGLE_REDIRECT_URI,
+      workspaceHd: env.GOOGLE_WORKSPACE_HD,
+    },
+    bootstrap: {
+      superAdminEmail: env.BOOTSTRAP_SUPER_ADMIN_EMAIL,
+      superAdminName: env.BOOTSTRAP_SUPER_ADMIN_NAME,
+      superAdminPassword: env.BOOTSTRAP_SUPER_ADMIN_PASSWORD,
+    },
   };
 };
