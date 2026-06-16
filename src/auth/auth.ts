@@ -42,12 +42,19 @@ const isProd = process.env.NODE_ENV === 'production';
 export const auth = betterAuth({
   database: prismaAdapter(prisma, { provider: 'postgresql' }),
 
-  // No email/password sign-in. Humans sign in with Google.
-  // The seed bypasses this by writing the first SUPER_ADMIN
-  // via Prisma directly; subsequent SUPER_ADMINs are also
-  // created via Prisma (the databaseHooks.user.update hook
-  // refuses to promote anyone to super_admin).
-  emailAndPassword: { enabled: false },
+  // Email/password sign-in.
+  // - production: DISABLED. Humans sign in with Google only.
+  //   The first SUPER_ADMIN is created via the
+  //   scripts/create-super-admin.ts CLI (direct Prisma write)
+  //   before the service is exposed; the SUPER_ADMIN then
+  //   signs in with Google (their Google email must match
+  //   the email in the DB).
+  // - development: ENABLED. The seed needs a way to sign in
+  //   as the seeded SUPER_ADMIN without setting up real
+  //   Google credentials. Email/password is the local
+  //   fallback. Production deployments set NODE_ENV=production
+  //   which closes this path.
+  emailAndPassword: { enabled: !isProd },
 
   // Account linking: same email across providers → same user.
   accountLinking: {
