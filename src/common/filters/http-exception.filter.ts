@@ -58,10 +58,16 @@ export class HttpExceptionFilter implements ExceptionFilter {
     if (exception instanceof HttpException) {
       const status = exception.getStatus();
       const response = exception.getResponse();
-      const message =
-        typeof response === 'string'
-          ? response
-          : ((response as { message?: string | string[] }).message ?? exception.message);
+      const body: Record<string, unknown> =
+        typeof response === 'string' ? {} : (response as Record<string, unknown>);
+      const message = (body.message as string | string[] | undefined) ?? exception.message;
+      // Preserve structured extras (e.g. `errors` from the Zod pipe).
+      const extras: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(body)) {
+        if (k !== 'message' && k !== 'statusCode' && k !== 'error') {
+          extras[k] = v;
+        }
+      }
       return {
         type: `https://taksees.app/errors/http-${status}`,
         title: HttpStatus[status] ?? 'Error',
@@ -69,6 +75,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
         detail: Array.isArray(message) ? message.join('; ') : message,
         instance,
         traceId,
+        ...extras,
       };
     }
 
