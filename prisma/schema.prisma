@@ -1,0 +1,30 @@
+// Taksees — Prisma schema
+// Phase 0: datasource only. Models are added per phase (see docs/phases/).
+// Phase 1 adds: User, Class, Member, ServantClass
+// Phase 3 adds: Session, Attendance
+// Phase 4 adds: AbsenceReport
+// Phase 5 adds: PushSubscription
+// Phase 6 adds: Quiz, QuizAttempt, Score
+// Phase 8 adds: MemberStat
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// ────────────────────────────────────────────────────────────────
+// Models will be appended below as each phase lands.
+// See docs/data-model.md for the final schema.
+// ────────────────────────────────────────────────────────────────
+
+// Phase 0 placeholder. Replaced in Phase 1 with the real User model.
+model Phase0Placeholder {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+
+  @@map("phase0_placeholder")
+}
