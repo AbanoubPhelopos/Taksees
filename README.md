@@ -29,10 +29,11 @@ Taksees (Arabic: طقسيس) powers rosters, attendance, absence reports, quizze
 A servant may be assigned to multiple classes and may use multiple devices. The classic single-flag `isActive` pattern breaks: switching classes on a mobile app would silently deactivate the class open in a desktop browser. Taksees solves this by:
 
 1. **No global "active class" flag.** The client sends `X-Class-Id` on every request.
-2. **Stateless tenant guard.** `ClassTenantGuard` validates the header against the user's allowed class set (from a JWT claim, with a DB fallback).
+2. **Stateless tenant guard.** `ClassTenantGuard` validates the header against the user's allowed class set (one DB lookup for leader, one for servant; SUPER_ADMIN bypasses).
 3. **Scalable leaderboard scoring.** `score = points + (1 − elapsed / maxDuration)` — integer part = points, decimal part = speed tie-breaker. Safe in IEEE 754 doubles.
-4. **No IAM in this repo.** A separate auth service issues tokens; this service consumes `req.user = { id, role, classIds }`.
-5. **No S3, no FCM, no SMS, no WhatsApp.** Local volume storage, Web Push only. Interfaces preserved for future swap.
+4. **Google OAuth + role-based access control.** Humans sign in with Google (default role: `member`). SUPER_ADMIN is created via direct Prisma writes only. Account lock = `users.banned = true` (rejected with 403 by the global AuthGuard on every request).
+5. **Defense in depth.** Three independent guards on every protected route: Better Auth's AuthGuard → RolesGuard → ClassTenantGuard. Any one rejects on its own.
+6. **No S3, no FCM, no SMS, no WhatsApp.** Local volume storage, Web Push only. Interfaces preserved for future swap.
 
 See [`docs/decisions/`](./docs/decisions) (out-of-tree, kept for reference) for the full ADRs.
 
@@ -387,6 +388,7 @@ The full model — with all indexes, the partial unique index on `Session(status
 | Framework        | NestJS 10 + TypeScript 5 strict | DI, modular, opinionated                                        |
 | ORM              | Prisma 5                        | Schema-first, type-safe, simple migrations                      |
 | Database         | PostgreSQL 16                   | Composite keys, JSONB, partial indexes                          |
+| Auth             | Better Auth                     | Session cookies + Google OAuth + admin plugin (banned state)    |
 | Cache / ZSET     | Redis 7                         | Sorted sets for O(log n) leaderboard                            |
 | Queue            | BullMQ                          | Durable jobs, retries, DLQ, idempotent jobs                     |
 | Validation       | Zod                             | Schema reuse client↔server, strong TS inference                  |
@@ -419,20 +421,28 @@ pnpm prisma generate
 
 # 4. Configure env
 cp .env.example .env
-# Edit .env: set DATABASE_URL, REDIS_URL, FILE_SIGNING_SECRET, VAPID_*
+# Required: DATABASE_URL, REDIS_URL, FILE_SIGNING_SECRET
+# For Google sign-in: GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET
+#   (create at https://console.cloud.google.com/apis/credentials)
+# For dev seed: BOOTSTRAP_SUPER_ADMIN_EMAIL + _PASSWORD
 
 # 5. Start infrastructure
 docker compose up -d postgres redis
 
 # 6. Run migrations
-pnpm prisma migrate dev
+pnpm prisma migrate deploy
 
-# 7. Boot the API (hot-reload)
+# 7. Seed the database (creates the SUPER_ADMIN + classes + members)
+pnpm prisma:seed
+# In dev (NODE_ENV != production), the seed SUPER_ADMIN has email/password
+# sign-in enabled so you can test without Google credentials.
+
+# 8. Boot the API (hot-reload)
 pnpm run start:dev
 # or
 pnpm run build && pnpm run start:prod
 
-# 8. In a second terminal, boot the worker
+# 9. In a second terminal, boot the worker
 pnpm run start:worker
 ```
 
@@ -440,10 +450,44 @@ Once running:
 
 | URL                                          | Purpose                                |
 | -------------------------------------------- | -------------------------------------- |
-| `http://localhost:3000/health`               | Liveness + readiness                   |
+| `http://localhost:3000/health`               | Liveness + readiness (public)         |
 | `http://localhost:3000/docs`                 | Swagger UI                             |
 | `http://localhost:3000/docs-json`            | Raw OpenAPI 3 spec                     |
-| `http://localhost:3000/api/...`              | All business endpoints                 |
+| `http://localhost:3000/api/auth/*`           | Better Auth endpoints (Google, etc.)   |
+| `http://localhost:3000/api/...`              | All business endpoints (auth required) |
+
+## Authentication
+
+Taksees uses [Better Auth](https://better-auth.com) for identity,
+with the [`@thallesp/nestjs-better-auth`](https://github.com/ThallesP/nestjs-better-auth)
+NestJS integration. The four roles are:
+
+| Role          | How it's granted                                       | Can do |
+| ------------- | ------------------------------------------------------ | ------ |
+| `super_admin` | Direct Prisma write only (seed or recovery CLI)        | Everything, in any class |
+| `leader`      | `super_admin` promotes via `/api/auth/admin/set-role` | Manage their class |
+| `servant`     | `super_admin` or `leader` (of the same class)         | Operate in classes they're assigned to |
+| `member`      | Default for every new Google sign-up                    | Read their own profile only |
+
+Every protected request passes through three independent guards:
+
+1. **Better Auth's global `AuthGuard`** — checks the session cookie, sets `req.user`, rejects banned users with 403
+2. **`RolesGuard`** — checks `req.user.role` against the route's `@Roles(...)` metadata
+3. **`ClassTenantGuard`** — checks the `X-Class-Id` header against the caller's class set (leader, servant, or SUPER_ADMIN bypass)
+
+The full design is documented in `docs/decisions/0007-rbac-and-google-oauth.md` (kept in the working tree, gitignored).
+
+### Production bootstrap
+
+In production, the first `super_admin` is created with:
+
+```bash
+pnpm ts-node scripts/create-super-admin.ts \
+  --email admin@taksees.app \
+  --name "System Admin"
+```
+
+That user signs in with Google (their Google email must match the `--email` value, otherwise `accountLinking` creates a separate user). All subsequent admins are promoted through the API.
 
 ---
 
@@ -537,6 +581,7 @@ gantt
 | 0  | Foundation                     | 2–3 d       | ✅ Done   |
 | 1  | Classes & Members              | 3–4 d       | ✅ Done   |
 | 2  | Tenant Isolation               | 2 d         | ✅ Done   |
+| 2b | Google OAuth + RBAC            | 3 d         | ✅ Done   |
 | 3  | Attendance                     | 3–4 d       | ⏳ Next   |
 | 4  | Absence Reports (PDF)          | 3 d         | Planned  |
 | 5  | Browser Push                   | 4 d         | Planned  |
