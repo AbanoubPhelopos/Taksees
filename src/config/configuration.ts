@@ -23,6 +23,17 @@ export interface AppConfig {
     subject?: string;
   };
   fileSigningSecret: string;
+  google: {
+    clientId?: string;
+    clientSecret?: string;
+    redirectUri: string;
+    workspaceHd?: string;
+  };
+  bootstrap: {
+    superAdminEmail?: string;
+    superAdminName?: string;
+    superAdminPassword?: string;
+  };
 }
 
 export default (): AppConfig => {

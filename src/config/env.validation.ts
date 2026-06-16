@@ -35,6 +35,23 @@ export const envSchema = z.object({
 
   // File signing
   FILE_SIGNING_SECRET: z.string().min(16).default('change-me-in-production-please'),
+
+  // Google OAuth (Better Auth)
+  // All four are optional in dev so the seed and test suites can
+  // boot without real Google credentials. In production they
+  // are required.
+  GOOGLE_CLIENT_ID: z.string().optional(),
+  GOOGLE_CLIENT_SECRET: z.string().optional(),
+  GOOGLE_REDIRECT_URI: z
+    .string()
+    .url()
+    .default('http://localhost:3000/api/auth/callback/google'),
+  GOOGLE_WORKSPACE_HD: z.string().optional(),
+
+  // Bootstrap (seed only — never set in production)
+  BOOTSTRAP_SUPER_ADMIN_EMAIL: z.string().email().optional(),
+  BOOTSTRAP_SUPER_ADMIN_NAME: z.string().optional(),
+  BOOTSTRAP_SUPER_ADMIN_PASSWORD: z.string().min(8).optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;
