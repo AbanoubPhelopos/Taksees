@@ -1,8 +1,18 @@
-import { ExecutionContext, ForbiddenException } from '@nestjs/common';
+import { ExecutionContext, ForbiddenException, UnauthorizedException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { Test } from '@nestjs/testing';
 import { RolesGuard } from './roles.guard';
 import { AuthUser } from '../types/auth-user';
+
+// Mock the auth module so the test doesn't try to load
+// better-auth's ESM bundle in a CommonJS test runner.
+jest.mock('../../auth/auth', () => ({
+  auth: {
+    api: {
+      getSession: jest.fn().mockResolvedValue(null),
+    },
+  },
+}));
 import { Roles } from '../decorators/roles.decorator';
 
 /**
@@ -58,60 +68,60 @@ describe('RolesGuard', () => {
   });
 
   describe('no @Roles metadata', () => {
-    it('passes for any authenticated user', () => {
+    it('passes for any authenticated user', async () => {
       const probe = new NoRolesProbe();
       const c = buildCtx(probe, { user: MEMBER });
-      expect(guard.canActivate(c)).toBe(true);
+      await expect(guard.canActivate(c)).resolves.toBe(true);
     });
 
-    it("passes even without a user (defence in depth is the AuthGuard's job)", () => {
+    it("passes even without a user (defence in depth is the AuthGuard's job)", async () => {
       const probe = new NoRolesProbe();
       const c = buildCtx(probe, {});
-      expect(guard.canActivate(c)).toBe(true);
+      await expect(guard.canActivate(c)).resolves.toBe(true);
     });
   });
 
   describe('@Roles metadata present', () => {
-    it('SUPER_ADMIN passes a SUPER_ADMIN | LEADER set', () => {
+    it('SUPER_ADMIN passes a SUPER_ADMIN | LEADER set', async () => {
       const probe = new RolesProbe();
       const c = buildCtx(probe, { user: SUPER_ADMIN });
-      expect(guard.canActivate(c)).toBe(true);
+      await expect(guard.canActivate(c)).resolves.toBe(true);
     });
 
-    it('LEADER passes a SUPER_ADMIN | LEADER set', () => {
+    it('LEADER passes a SUPER_ADMIN | LEADER set', async () => {
       const probe = new RolesProbe();
       const c = buildCtx(probe, { user: LEADER });
-      expect(guard.canActivate(c)).toBe(true);
+      await expect(guard.canActivate(c)).resolves.toBe(true);
     });
 
-    it('SERVANT rejects a SUPER_ADMIN | LEADER set', () => {
+    it('SERVANT rejects a SUPER_ADMIN | LEADER set', async () => {
       const probe = new RolesProbe();
       const c = buildCtx(probe, { user: SERVANT });
-      expect(() => guard.canActivate(c)).toThrow(ForbiddenException);
+      await expect(guard.canActivate(c)).rejects.toThrow(ForbiddenException);
     });
 
-    it('MEMBER rejects a SUPER_ADMIN | LEADER set', () => {
+    it('MEMBER rejects a SUPER_ADMIN | LEADER set', async () => {
       const probe = new RolesProbe();
       const c = buildCtx(probe, { user: MEMBER });
-      expect(() => guard.canActivate(c)).toThrow(ForbiddenException);
+      await expect(guard.canActivate(c)).rejects.toThrow(ForbiddenException);
     });
 
-    it('SUPER_ADMIN alone passes a SUPER_ADMIN-only set', () => {
+    it('SUPER_ADMIN alone passes a SUPER_ADMIN-only set', async () => {
       const probe = new SuperAdminOnlyProbe();
       const c = buildCtx(probe, { user: SUPER_ADMIN });
-      expect(guard.canActivate(c)).toBe(true);
+      await expect(guard.canActivate(c)).resolves.toBe(true);
     });
 
-    it('LEADER rejects a SUPER_ADMIN-only set', () => {
+    it('LEADER rejects a SUPER_ADMIN-only set', async () => {
       const probe = new SuperAdminOnlyProbe();
       const c = buildCtx(probe, { user: LEADER });
-      expect(() => guard.canActivate(c)).toThrow(ForbiddenException);
+      await expect(guard.canActivate(c)).rejects.toThrow(ForbiddenException);
     });
 
-    it('no user attached throws 403 (the AuthGuard should have rejected first)', () => {
+    it('no user attached throws 401 (the AuthGuard should have rejected first)', async () => {
       const probe = new SuperAdminOnlyProbe();
       const c = buildCtx(probe, {});
-      expect(() => guard.canActivate(c)).toThrow(ForbiddenException);
+      await expect(guard.canActivate(c)).rejects.toThrow(UnauthorizedException);
     });
   });
 });
