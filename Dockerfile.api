@@ -1,0 +1,68 @@
+# ─────────────────────────────────────────────────────────────
+# Taksees API — production Dockerfile (multi-stage)
+# ─────────────────────────────────────────────────────────────
+# Build stage — install all deps and compile TypeScript.
+# ─────────────────────────────────────────────────────────────
+FROM node:22.16-alpine AS builder
+WORKDIR /app
+
+# Install build deps (pinned via packageManager field).
+RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
+
+COPY package.json pnpm-lock.yaml* ./
+COPY prisma ./prisma
+
+# `fetch` only fetches from the registry; we then run a full install
+# so devDeps are present for the build.
+RUN pnpm install --frozen-lockfile=false
+
+COPY tsconfig.json tsconfig.build.json nest-cli.json ./
+COPY src ./src
+
+# Generate the Prisma client, then compile.
+RUN pnpm prisma generate
+RUN pnpm run build
+
+# ─────────────────────────────────────────────────────────────
+# Production deps — only what's needed at runtime.
+# ─────────────────────────────────────────────────────────────
+FROM node:22.16-alpine AS prod-deps
+WORKDIR /app
+
+RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
+
+COPY package.json pnpm-lock.yaml* ./
+COPY prisma ./prisma
+
+RUN pnpm install --prod --frozen-lockfile=false && pnpm prisma generate
+
+# ─────────────────────────────────────────────────────────────
+# Runtime stage — slim image with only prod deps + compiled output.
+# ─────────────────────────────────────────────────────────────
+FROM node:22.16-alpine AS runtime
+WORKDIR /app
+
+# Security: run as a non-root user.
+RUN addgroup -S taksees && adduser -S taksees -G taksees
+
+ENV NODE_ENV=production \
+    PORT=3000 \
+    STORAGE_DIR=/var/lib/taksees/storage
+
+# Copy runtime artifacts.
+COPY --from=prod-deps /app/node_modules ./node_modules
+COPY --from=prod-deps /app/prisma ./prisma
+COPY --from=builder   /app/dist         ./dist
+COPY package.json ./
+
+# Storage volume — must be a mounted volume in production.
+RUN mkdir -p /var/lib/taksees/storage && chown -R taksees:taksees /var/lib/taksees /app
+USER taksees
+
+EXPOSE 3000
+
+# Built-in health check uses the /health endpoint.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+  CMD wget -qO- http://127.0.0.1:3000/health | grep -q '"status":"ok"' || exit 1
+
+CMD ["node", "dist/main.js"]

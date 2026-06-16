@@ -1,0 +1,48 @@
+# ─────────────────────────────────────────────────────────────
+# Taksees Worker — same image, no HTTP port. Runs BullMQ
+# consumers and cron jobs.
+# ─────────────────────────────────────────────────────────────
+# Build stage — identical to the API.
+# ─────────────────────────────────────────────────────────────
+FROM node:22.16-alpine AS builder
+WORKDIR /app
+
+RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
+
+COPY package.json pnpm-lock.yaml* ./
+COPY prisma ./prisma
+RUN pnpm install --frozen-lockfile=false
+COPY tsconfig.json tsconfig.build.json nest-cli.json ./
+COPY src ./src
+
+RUN pnpm prisma generate
+RUN pnpm run build
+
+# ─────────────────────────────────────────────────────────────
+# Runtime — only the compiled worker.js + runtime deps.
+# ─────────────────────────────────────────────────────────────
+FROM node:22.16-alpine AS runtime
+WORKDIR /app
+
+RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
+
+# Slim prod install for the worker.
+COPY package.json pnpm-lock.yaml* ./
+COPY prisma ./prisma
+RUN pnpm install --prod --frozen-lockfile=false && pnpm prisma generate
+
+# Copy built artifacts.
+COPY --from=builder /app/dist ./dist
+
+# Storage volume mount.
+RUN addgroup -S taksees && adduser -S taksees -G taksees \
+    && mkdir -p /var/lib/taksees/storage \
+    && chown -R taksees:taksees /var/lib/taksees /app
+USER taksees
+
+ENV NODE_ENV=production \
+    STORAGE_DIR=/var/lib/taksees/storage
+
+# No EXPOSE — worker has no HTTP listener.
+
+CMD ["node", "dist/worker.js"]

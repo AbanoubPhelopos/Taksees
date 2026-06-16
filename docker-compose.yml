@@ -1,0 +1,100 @@
+services:
+  # ─── Postgres 16 ─────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: taksees-postgres
+    environment:
+      POSTGRES_DB: taksees
+      POSTGRES_USER: taksees
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-taksees}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U taksees -d taksees"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  # ─── Redis 7 ─────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: taksees-redis
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory-policy", "allkeys-lru"]
+    volumes:
+      - redisdata:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  # ─── API ─────────────────────────────────────────────────────
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    container_name: taksees-api
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      PORT: 3000
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      DATABASE_URL: postgresql://taksees:${DB_PASSWORD:-taksees}@postgres:5432/taksees?schema=public
+      REDIS_URL: redis://redis:6379
+      STORAGE_DIR: /var/lib/taksees/storage
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173}
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:admin@taksees.app}
+      FILE_SIGNING_SECRET: ${FILE_SIGNING_SECRET:-dev-only-change-me-in-prod}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
+    volumes:
+      - taksees_storage:/var/lib/taksees/storage
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+  # ─── Worker (BullMQ consumers + cron) ────────────────────────
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    container_name: taksees-worker
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      DATABASE_URL: postgresql://taksees:${DB_PASSWORD:-taksees}@postgres:5432/taksees?schema=public
+      REDIS_URL: redis://redis:6379
+      STORAGE_DIR: /var/lib/taksees/storage
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:admin@taksees.app}
+      FILE_SIGNING_SECRET: ${FILE_SIGNING_SECRET:-dev-only-change-me-in-prod}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - taksees_storage:/var/lib/taksees/storage
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  redisdata:
+  taksees_storage:
