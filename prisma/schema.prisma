@@ -1,9 +1,14 @@
 // Taksees — Prisma schema
 // Phase 0: datasource only. Models are added per phase (see docs/phases/).
-// Phase 1: User, Class, Member, ServantClass (this file)
+// Phase 1: User (replaced by Better Auth schema in Phase 2)
+//          Class, Member, ServantClass
+// Phase 2: Better Auth — user, session, account, verification
+//          (the custom User model from Phase 1 is replaced by
+//          Better Auth's user table to keep a single source of truth
+//          for identity)
 // Phase 3 adds: Session, Attendance
 // Phase 4 adds: AbsenceReport
-// Phase 5 adds: PushSubscription
+// Phase 5 adds: (none — reuses push_subscriptions from Better Auth)
 // Phase 6 adds: Quiz, QuizAttempt, Score
 // Phase 8 adds: MemberStat
 
@@ -17,41 +22,85 @@ generator client {
 }
 
 // ────────────────────────────────────────────────────────────────
-// Phase 1: Identity, classes, and member rosters
+// Better Auth — identity, sessions, accounts, verifications
+//
+// Better Auth's Prisma adapter expects these exact table names
+// (see auth-schema.ts) plus our additional fields: phone, role.
 // ────────────────────────────────────────────────────────────────
 
-enum Role {
-  SUPER_ADMIN
-  LEADER
-  SERVANT
-  MEMBER
-}
-
-enum ClassLevel {
-  PRIMARY_1
-  PRIMARY_2
-  PRIMARY_3
-  PRIMARY_4
-  PRIMARY_5
-  PRIMARY_6
-  SECONDARY
-  COLLEGE
-}
-
 model User {
-  id           String   @id @default(uuid())
-  email        String   @unique
-  name         String
-  phone        String?
-  role         Role     @default(SERVANT)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id            String   @id
+  name          String
+  email         String   @unique
+  emailVerified  Boolean  @default(false)
+  image         String?
+  phone         String?
+  // Church-specific role: SUPER_ADMIN | LEADER | SERVANT | MEMBER
+  role          String   @default("SERVANT")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
+  // Better Auth relations
+  sessions Session[]
+  accounts Account[]
+
+  // Taksees relations
   leaderClass    Class?          @relation("ClassLeader")
   servantClasses ServantClass[]
 
   @@map("users")
 }
+
+model Session {
+  id        String   @id
+  expiresAt DateTime
+  token     String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  ipAddress String?
+  userAgent String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+model Account {
+  id                    String    @id
+  accountId             String
+  providerId            String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@index([userId])
+  @@map("accounts")
+}
+
+model Verification {
+  id         String   @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([identifier])
+  @@map("verifications")
+}
+
+// ────────────────────────────────────────────────────────────────
+// Phase 1: Classes, members, servant mapping
+// ────────────────────────────────────────────────────────────────
 
 model Class {
   id        String     @id @default(uuid())
@@ -95,4 +144,19 @@ model ServantClass {
   @@id([servantId, classId])
   @@index([classId])
   @@map("servant_classes")
+}
+
+// ────────────────────────────────────────────────────────────────
+// Enums
+// ────────────────────────────────────────────────────────────────
+
+enum ClassLevel {
+  PRIMARY_1
+  PRIMARY_2
+  PRIMARY_3
+  PRIMARY_4
+  PRIMARY_5
+  PRIMARY_6
+  SECONDARY
+  COLLEGE
 }
