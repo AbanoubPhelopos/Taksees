@@ -107,6 +107,22 @@ model Verification {
 }
 
 // ────────────────────────────────────────────────────────────────
+// Better Auth — rate limiter
+//
+// Used by the admin plugin's rateLimit option. Stores counters
+// per (key, path) so auth endpoints can throttle without an
+// external store.
+// ────────────────────────────────────────────────────────────────
+
+model RateLimit {
+  id          String   @id
+  key         String?
+  count       Int      @default(0)
+  lastRequest BigInt
+  @@map("rateLimit")
+}
+
+// ────────────────────────────────────────────────────────────────
 // Phase 1: Classes, members, servant mapping
 // ────────────────────────────────────────────────────────────────
 

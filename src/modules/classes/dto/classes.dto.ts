@@ -6,7 +6,10 @@ export const ClassLevelSchema = z.enum(CLASS_LEVELS);
 export const CreateClassSchema = z.object({
   name: z.string().min(2).max(120),
   level: ClassLevelSchema,
-  leaderId: z.string().uuid(),
+  // Better Auth uses non-UUID user ids (base64-like strings).
+  // We accept any non-empty string and let the service layer
+  // verify it against the actual user.
+  leaderId: z.string().min(1),
 });
 export type CreateClassDto = z.infer<typeof CreateClassSchema>;
 
@@ -14,7 +17,7 @@ export const UpdateClassSchema = z
   .object({
     name: z.string().min(2).max(120).optional(),
     level: ClassLevelSchema.optional(),
-    leaderId: z.string().uuid().optional(),
+    leaderId: z.string().min(1).optional(),
   })
   .refine((v) => Object.keys(v).length > 0, { message: 'No fields to update.' });
 export type UpdateClassDto = z.infer<typeof UpdateClassSchema>;
