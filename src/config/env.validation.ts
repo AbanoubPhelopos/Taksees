@@ -42,10 +42,7 @@ export const envSchema = z.object({
   // are required.
   GOOGLE_CLIENT_ID: z.string().optional(),
   GOOGLE_CLIENT_SECRET: z.string().optional(),
-  GOOGLE_REDIRECT_URI: z
-    .string()
-    .url()
-    .default('http://localhost:3000/api/auth/callback/google'),
+  GOOGLE_REDIRECT_URI: z.string().url().default('http://localhost:3000/api/auth/callback/google'),
   GOOGLE_WORKSPACE_HD: z.string().optional(),
 
   // Bootstrap (seed only — never set in production)
