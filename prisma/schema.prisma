@@ -35,8 +35,16 @@ model User {
   emailVerified  Boolean  @default(false)
   image         String?
   phone         String?
-  // Church-specific role: SUPER_ADMIN | LEADER | SERVANT | MEMBER
-  role          String   @default("SERVANT")
+  // Church-specific role: super_admin | leader | servant | member.
+  // The string is the value the admin plugin writes; the typed
+  // UserRole enum is enforced at the domain boundary.
+  role          String   @default("member")
+  // Account lock (set by the admin plugin via /admin/ban-user).
+  // The global AuthGuard rejects every request from a banned
+  // user before any other check runs.
+  banned        Boolean   @default(false)
+  banReason     String?
+  banExpires    DateTime?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
