@@ -11,7 +11,7 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
-import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { ZodValidationPipe } from '../../../common/pipes/zod-validation.pipe';
 import {
   CreateClassDto,
@@ -24,10 +24,13 @@ import {
 import { ClassService } from '../services/class.service';
 
 @ApiTags('classes')
+@ApiBearerAuth()
 @Controller('classes')
 export class ClassesController {
   constructor(private readonly classService: ClassService) {}
 
+  // Listing classes is an authenticated but not class-scoped
+  // endpoint — no ClassTenantGuard here, just Better Auth.
   @Get()
   @ApiOperation({ summary: 'List classes (paged, filterable by level/leader).' })
   list(@Query(new ZodValidationPipe(ListClassesQuerySchema)) query: ListClassesQueryDto) {

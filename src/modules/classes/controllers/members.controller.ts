@@ -10,9 +10,11 @@ import {
   Patch,
   Post,
   Query,
+  UseGuards,
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { ZodValidationPipe } from '../../../common/pipes/zod-validation.pipe';
+import { ClassTenantGuard } from '../../../common/guards/class-tenant.guard';
 import {
   AddMemberDto,
   AddMemberSchema,
@@ -24,6 +26,7 @@ import {
 import { MemberService } from '../services/member.service';
 
 @ApiTags('members')
+@UseGuards(ClassTenantGuard)
 @Controller('classes/:classId/members')
 export class MembersController {
   constructor(private readonly memberService: MemberService) {}

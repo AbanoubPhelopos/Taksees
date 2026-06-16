@@ -8,13 +8,16 @@ import {
   Param,
   ParseUUIDPipe,
   Post,
+  UseGuards,
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { ZodValidationPipe } from '../../../common/pipes/zod-validation.pipe';
+import { ClassTenantGuard } from '../../../common/guards/class-tenant.guard';
 import { AssignServantDto, AssignServantSchema } from '../dto/classes.dto';
 import { ServantClassService } from '../services/servant-class.service';
 
 @ApiTags('servants')
+@UseGuards(ClassTenantGuard)
 @Controller('classes/:id/servants')
 export class ServantsController {
   constructor(private readonly servantClassService: ServantClassService) {}
