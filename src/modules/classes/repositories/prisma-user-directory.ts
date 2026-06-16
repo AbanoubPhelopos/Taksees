@@ -1,11 +1,15 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../../infrastructure/database/prisma.service';
 import { IUserDirectory } from '../domain/interfaces/repositories.interface';
+import { UserRole, isUserRole } from '../../../common/types/auth-user';
 
 /**
- * Thin Prisma-backed implementation of IUserDirectory.
- * Lives here (not in users/) because users/ is out of scope for
- * Phase 1. Will move to its own module in a later phase.
+ * Prisma-backed implementation of IUserDirectory.
+ *
+ * Reads from Better Auth's `users` table. The `role` column is
+ * the additional church-specific field added to the Better Auth
+ * user schema. Unknown values are coerced to 'SERVANT' so a stale
+ * claim can never grant higher permissions than expected.
  */
 @Injectable()
 export class PrismaUserDirectory implements IUserDirectory {
@@ -30,5 +34,15 @@ export class PrismaUserDirectory implements IUserDirectory {
     return this.prisma.user.count({
       where: { id: { in: ids }, role: 'SERVANT' },
     });
+  }
+
+  /** Convenience helper for ClassTenantGuard — read a user's role. */
+  async getRole(id: string): Promise<UserRole | null> {
+    const row = await this.prisma.user.findUnique({
+      where: { id },
+      select: { role: true },
+    });
+    if (!row) return null;
+    return isUserRole(row.role) ? row.role : 'SERVANT';
   }
 }

@@ -1,28 +1,30 @@
-import { Prisma, Role } from '@prisma/client';
+import { Prisma, User } from '@prisma/client';
+import { UserRole, isUserRole } from '../../../../common/types/auth-user';
 
 /**
- * User — the identity row. The `classIds` set the auth service stamps
- * onto req.user is derived from the ServantClass mapping and from
- * any class the user leads.
+ * User — thin domain wrapper around the Better Auth user row.
+ * `role` is the church-specific additional field; it's coerced
+ * to the typed UserRole at the boundary so the rest of the
+ * codebase never sees the raw string.
  */
-export class User {
+export class UserEntity {
   private constructor(
     public readonly id: string,
     public readonly email: string,
     public name: string,
     public phone: string | null,
-    public role: Role,
+    public role: UserRole,
     public readonly createdAt: Date,
     public updatedAt: Date,
   ) {}
 
-  static fromPrisma(row: Prisma.UserGetPayload<true>): User {
-    return new User(
+  static fromPrisma(row: Prisma.UserGetPayload<true>): UserEntity {
+    return new UserEntity(
       row.id,
       row.email,
       row.name,
       row.phone ?? null,
-      row.role,
+      isUserRole(row.role) ? row.role : 'SERVANT',
       row.createdAt,
       row.updatedAt,
     );
@@ -35,4 +37,7 @@ export class User {
   setPhone(phone: string | null): void {
     this.phone = phone;
   }
+
+  /** Used by the seed; not part of the public API. */
+  static readonly typeMarker: User = undefined as unknown as User;
 }
